@@ -64,16 +64,8 @@ const Index = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const navigate = useNavigate();
   const handleRegenerateImage = async (sceneIndex: number, prompt: string) => {
-    const { regenerateScene, API_BASE_URL } = await import("@/utils/api");
-    await regenerateScene(sceneIndex, prompt);
-    // Bust cache for updated image
-    setGeneratedSceneUrls((prev) =>
-      prev.map((u, idx) =>
-        idx + 1 === sceneIndex
-          ? `${API_BASE_URL}/generated_scenes/scene${sceneIndex}.png?t=${Date.now()}`
-          : u
-      )
-    );
+    // Demo mode: regeneration is disabled; keep existing image
+    toast.message("Regenerate is disabled in demo mode.");
   };
 
   const handleCreateVideo = () => {
@@ -372,34 +364,15 @@ const Index = () => {
 
   const handleGenerateScenes = () => {
     if (!storyboardScenes) return;
-    // For now, just call the backend with storyboard only (assets are stored server-side)
-    import("@/utils/api").then(({ generateScenes, API_BASE_URL }) => {
-      setIsGeneratingScenes(true);
-      setGeneratedSceneUrls([]);
-      generateScenes(storyboardScenes)
-        .then((res) => {
-          // Build default URLs by scene index
-          const count: number =
-            (res && (res.scenes_generated as number)) ||
-            storyboardScenes.length;
-          const urls = Array.from(
-            { length: count },
-            (_, i) => `${API_BASE_URL}/generated_scenes/scene${i + 1}.png`
-          );
-          setGeneratedSceneUrls(urls);
-          toast.success("Scenes generated");
-        })
-        .catch((err) => {
-          // eslint-disable-next-line no-console
-          console.error(err);
-          toast.error(
-            err instanceof Error ? err.message : "Failed to generate scenes"
-          );
-        })
-        .finally(() => {
-          setIsGeneratingScenes(false);
-        });
-    });
+    // Demo mode: simulate 10s wait, then show 13 public images
+    setIsGeneratingScenes(true);
+    setGeneratedSceneUrls([]);
+    setTimeout(() => {
+      const urls = Array.from({ length: 13 }, (_, i) => `/scene${i + 1}.png`);
+      setGeneratedSceneUrls(urls);
+      setIsGeneratingScenes(false);
+      toast.success("Scenes ready");
+    }, 10000);
   };
 
   return (
