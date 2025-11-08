@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ProcessingSteps } from "@/components/ProcessingSteps";
@@ -13,11 +13,15 @@ import {
 } from "@/components/CharAssetsUploader";
 import { ScenesGenerationPanel } from "@/components/ScenesGenerationPanel";
 import { ScenesGallery } from "@/components/ScenesGallery";
-import { SaveStatesMenu } from "@/components/SaveStatesMenu";
+import { TopProgressBar } from "@/components/TopProgressBar";
+import { AppSidebar } from "@/components/AppSidebar";
+import { SourcesInput } from "@/components/SourcesInput";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Loader2, Maximize2 } from "lucide-react";
 import { generateAdIdeas, extractUrl, generateStoryboard } from "@/utils/api";
 import { AdIdea, ProcessingStep } from "@/types/ad";
-import type { AppState } from "@/hooks/useSaveStates";
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   role: "user" | "assistant";
@@ -53,6 +57,12 @@ const Index = () => {
   const [charAssets, setCharAssets] = useState<UploadedAsset[]>([]);
   const [isGeneratingScenes, setIsGeneratingScenes] = useState<boolean>(false);
   const [generatedSceneUrls, setGeneratedSceneUrls] = useState<string[]>([]);
+  const [sources, setSources] = useState<string[]>([]);
+  const [showSources, setShowSources] = useState<boolean>(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState<boolean>(false);
+  const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const navigate = useNavigate();
   const handleRegenerateImage = async (sceneIndex: number, prompt: string) => {
     const { regenerateScene, API_BASE_URL } = await import("@/utils/api");
     await regenerateScene(sceneIndex, prompt);
@@ -67,7 +77,29 @@ const Index = () => {
   };
 
   const handleCreateVideo = () => {
-    toast.message("Create video is not implemented yet.");
+    setIsVideoReady(false);
+    setIsGeneratingVideo(true);
+    // Simulate 10s generation
+    setTimeout(() => {
+      setIsGeneratingVideo(false);
+      setIsVideoReady(true);
+      toast.success("Video generated");
+    }, 10000);
+  };
+
+  const handleEnterFullscreen = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (el.requestFullscreen) {
+      el.requestFullscreen();
+    } else {
+      // Fallback: open controls-only fullscreen via webkit if available
+      // @ts-expect-error vendor api
+      if (el.webkitEnterFullscreen) {
+        // @ts-expect-error vendor api
+        el.webkitEnterFullscreen();
+      }
+    }
   };
 
   const updateStepStatus = (
@@ -235,6 +267,12 @@ const Index = () => {
 
     // Extract additional context (everything except the URL)
     const additionalContext = message.replace(url, "").trim();
+    const combinedContext = [
+      additionalContext,
+      sources.length > 0 ? `Additional sources: ${sources.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     // Initialize processing steps (all pending – first pill appears after typing)
     const steps: ProcessingStep[] = [
@@ -279,7 +317,7 @@ const Index = () => {
       // Make actual API call
       const ideas = await generateAdIdeas({
         company_url: url,
-        additional_context: additionalContext || undefined,
+        additional_context: combinedContext || undefined,
       });
 
       updateStepStatus("images", "complete");
@@ -365,147 +403,180 @@ const Index = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-md border border-border bg-background flex items-center justify-center overflow-hidden">
-              <img
-                src="/adgentlogo.png"
-                alt="Adgent logo"
-                className="h-6 w-6 object-cover"
-              />
+    <div className="flex h-screen bg-background">
+      <AppSidebar />
+      <div className="flex-1 flex flex-col min-w-0">
+        <TopProgressBar
+          steps={["Idea", "Storyboard", "Scenes", "Video", "Publish"]}
+          activeIndex={
+            isGeneratingVideo || isVideoReady
+              ? 3
+              : storyboardScenes
+              ? 1
+              : isGeneratingScenes || generatedSceneUrls.length > 0
+              ? 2
+              : messages.length > 0 ||
+                adIdeas.length > 0 ||
+                selectedIdeaIndex !== null
+              ? 0
+              : 0
+          }
+        />
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto">
+          {isGeneratingVideo ? (
+            <div className="w-full h-full min-h-[70vh] flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-10 w-10 animate-spin text-foreground" />
+                <div className="text-sm text-muted-foreground">
+                  Generating your video… this can take a moment.
+                </div>
+              </div>
             </div>
-            <h1 className="text-xl font-semibold text-foreground">Adgent</h1>
-          </div>
-          <SaveStatesMenu
-            getCurrentState={() => ({
-              messages,
-              adIdeas,
-              selectedIdeaIndex,
-              companyUrl,
-              storyboardResult,
-              storyboardScenes,
-              lastStoryboardText,
-            })}
-            onLoadState={(state: AppState) => {
-              setMessages(state.messages);
-              setAdIdeas(state.adIdeas);
-              setSelectedIdeaIndex(state.selectedIdeaIndex);
-              setCompanyUrl(state.companyUrl);
-              setStoryboardResult(state.storyboardResult);
-              setStoryboardScenes(state.storyboardScenes ?? null);
-              setLastStoryboardText(state.lastStoryboardText ?? "");
-              setProcessingSteps([]);
-              setIsProcessing(false);
-              setPrefillMessage("");
-              setRouteNextToStoryboard(false);
-              toast.success("State loaded");
-            }}
-          />
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6">
-          {isGeneratingScenes ? (
-            <ScenesGenerationPanel isGenerating={true} sceneUrls={[]} />
-          ) : generatedSceneUrls.length > 0 ? (
-            <ScenesGallery
-              imageUrls={generatedSceneUrls}
-              scenes={storyboardScenes || []}
-              onRegenerate={handleRegenerateImage}
-              onCreateVideo={handleCreateVideo}
-            />
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-              <h2 className="text-4xl font-semibold text-foreground">
-                Generate AI-powered ads
-              </h2>
-              <p className="text-muted-foreground text-lg text-center max-w-2xl">
-                Share your company website and any context. We'll analyze your
-                brand and generate creative ad concepts with visuals.
-              </p>
-              <div className="w-full max-w-3xl">
-                <ChatInput
-                  onSend={handleSendMessage}
-                  disabled={isProcessing}
-                  placeholder="Tell us your website and what kind of ad you want to create..."
-                />
+          ) : isVideoReady ? (
+            <div className="w-full">
+              <div className="w-full">
+                <div className="w-full">
+                  <video
+                    ref={videoRef}
+                    src="/demo.mp4"
+                    controls
+                    className="w-full h-[calc(100vh-110px)] object-contain bg-black"
+                  />
+                </div>
+              </div>
+              <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleEnterFullscreen}
+                >
+                  <span className="mr-2 inline-flex">
+                    <Maximize2 className="h-4 w-4" />
+                  </span>
+                  Fullscreen
+                </Button>
+                <Button type="button" onClick={() => navigate("/publish")}>
+                  Continue to Publish
+                </Button>
               </div>
             </div>
           ) : (
-            <div className="py-8 space-y-6">
-              {messages.map((msg, idx) => (
-                <ChatMessage
-                  key={idx}
-                  role={msg.role}
-                  content={msg.content}
-                  typing={msg.typing}
-                  fade={msg.fade}
-                  steps={msg.ephemeral ? processingSteps : undefined}
+            <div className="max-w-5xl mx-auto px-6">
+              {isGeneratingScenes ? (
+                <ScenesGenerationPanel isGenerating={true} sceneUrls={[]} />
+              ) : generatedSceneUrls.length > 0 ? (
+                <ScenesGallery
+                  imageUrls={generatedSceneUrls}
+                  scenes={storyboardScenes || []}
+                  onRegenerate={handleRegenerateImage}
+                  onCreateVideo={handleCreateVideo}
                 />
-              ))}
-
-              {/* Inline steps are rendered inside the ephemeral assistant message */}
-
-              {adIdeas.length > 0 && (
-                <AdIdeasGrid
-                  ideas={adIdeas}
-                  selectedIndex={selectedIdeaIndex}
-                  onSelectIdea={handleSelectIdea}
-                />
-              )}
-
-              {storyboardScenes && !isGeneratingScenes && (
-                <StoryboardPanel
-                  scenes={storyboardScenes}
-                  onScenesChange={setStoryboardScenes}
-                  onGenerateScenes={handleGenerateScenes}
-                  model={storyboardResult?.model}
-                  assetsUploader={
-                    <div className="mt-2">
-                      <CharAssetsUploader
-                        assets={charAssets}
-                        onAssetsChange={setCharAssets}
-                      />
+              ) : messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+                  <h2 className="text-4xl font-semibold text-foreground">
+                    Generate AI-powered ads
+                  </h2>
+                  <p className="text-muted-foreground text-lg text-center max-w-2xl">
+                    Share your company website and any context. We'll analyze
+                    your brand and generate creative ad concepts with visuals.
+                  </p>
+                  <div className="w-full max-w-3xl">
+                    <ChatInput
+                      onSend={handleSendMessage}
+                      disabled={isProcessing}
+                      placeholder="Tell us your website and what kind of ad you want to create..."
+                      leftAccessory={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowSources((v) => !v)}
+                          className="px-0"
+                        >
+                          {showSources ? "Hide sources" : "+ Sources"}
+                        </Button>
+                      }
+                    />
+                  </div>
+                  {showSources && (
+                    <div className="w-full max-w-3xl">
+                      <SourcesInput sources={sources} onChange={setSources} />
                     </div>
-                  }
-                />
-              )}
+                  )}
+                </div>
+              ) : (
+                <div className="py-8 space-y-6">
+                  {messages.map((msg, idx) => (
+                    <ChatMessage
+                      key={idx}
+                      role={msg.role}
+                      content={msg.content}
+                      typing={msg.typing}
+                      fade={msg.fade}
+                      steps={msg.ephemeral ? processingSteps : undefined}
+                    />
+                  ))}
 
-              {!isGeneratingScenes && generatedSceneUrls.length > 0 && (
-                <ScenesGenerationPanel
-                  isGenerating={false}
-                  sceneUrls={generatedSceneUrls}
-                />
+                  {adIdeas.length > 0 && (
+                    <AdIdeasGrid
+                      ideas={adIdeas}
+                      selectedIndex={selectedIdeaIndex}
+                      onSelectIdea={handleSelectIdea}
+                    />
+                  )}
+
+                  {storyboardScenes && !isGeneratingScenes && (
+                    <StoryboardPanel
+                      scenes={storyboardScenes}
+                      onScenesChange={setStoryboardScenes}
+                      onGenerateScenes={handleGenerateScenes}
+                      model={storyboardResult?.model}
+                      assetsUploader={
+                        <div className="mt-2">
+                          <CharAssetsUploader
+                            assets={charAssets}
+                            onAssetsChange={setCharAssets}
+                          />
+                        </div>
+                      }
+                    />
+                  )}
+
+                  {!isGeneratingScenes && generatedSceneUrls.length > 0 && (
+                    <ScenesGenerationPanel
+                      isGenerating={false}
+                      sceneUrls={generatedSceneUrls}
+                    />
+                  )}
+                </div>
               )}
             </div>
           )}
-        </div>
-      </main>
+        </main>
 
-      {/* Input Area - hidden when storyboard is present or scenes view is active */}
-      {messages.length > 0 &&
-        !storyboardScenes &&
-        generatedSceneUrls.length === 0 &&
-        !isGeneratingScenes && (
-          <div className="border-t border-border bg-background">
-            <div className="max-w-5xl mx-auto px-6 py-6">
-              <ChatInput
-                onSend={handleSendMessage}
-                disabled={isProcessing}
-                placeholder="Paste your company website URL and any additional context..."
-                prefill={prefillMessage}
-                onVoiceClick={() =>
-                  toast.message("Voice input not implemented yet")
-                }
-              />
+        {/* Input Area - hidden when storyboard is present or scenes view is active */}
+        {messages.length > 0 &&
+          !storyboardScenes &&
+          generatedSceneUrls.length === 0 &&
+          !isGeneratingScenes &&
+          !isGeneratingVideo &&
+          !isVideoReady && (
+            <div className="border-t border-border bg-background">
+              <div className="max-w-5xl mx-auto px-6 py-6">
+                <ChatInput
+                  onSend={handleSendMessage}
+                  disabled={isProcessing}
+                  placeholder="Paste your company website URL and any additional context..."
+                  prefill={prefillMessage}
+                  onVoiceClick={() =>
+                    toast.message("Voice input not implemented yet")
+                  }
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+      </div>
     </div>
   );
 };

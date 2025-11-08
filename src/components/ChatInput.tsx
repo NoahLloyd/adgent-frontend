@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Mic, Send } from "lucide-react";
@@ -9,6 +10,7 @@ interface ChatInputProps {
   placeholder?: string;
   prefill?: string;
   onVoiceClick?: () => void;
+  leftAccessory?: ReactNode;
 }
 
 export const ChatInput = ({
@@ -17,6 +19,7 @@ export const ChatInput = ({
   placeholder,
   prefill,
   onVoiceClick,
+  leftAccessory,
 }: ChatInputProps) => {
   const [message, setMessage] = useState("");
 
@@ -55,25 +58,28 @@ export const ChatInput = ({
           disabled={disabled}
           className="min-h-[120px] resize-none"
         />
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={() => onVoiceClick?.()}
-          >
-            <Mic className="h-4 w-4 mr-2" />
-            Voice
-          </Button>
-          <Button
-            type="submit"
-            size="sm"
-            disabled={disabled || !message.trim()}
-          >
-            <Send className="h-4 w-4 mr-2" />
-            Send
-          </Button>
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-2">{leftAccessory}</div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onVoiceClick?.()}
+            >
+              <Mic className="h-4 w-4 mr-2" />
+              Voice
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={disabled || !message.trim()}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Send
+            </Button>
+          </div>
         </div>
       </div>
     </form>
