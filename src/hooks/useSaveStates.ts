@@ -4,6 +4,8 @@ export type AppState = {
   selectedIdeaIndex: number | null;
   companyUrl: string;
   storyboardResult: { prompt: string; generated_text: string; model?: string } | null;
+  storyboardScenes: Array<{ scene_description: string; voice_over_text: string }> | null;
+  lastStoryboardText: string;
 };
 
 export type SavedStateMeta = {

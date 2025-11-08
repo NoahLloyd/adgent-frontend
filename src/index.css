@@ -2,6 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Animations for step pills */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 220ms ease-out both;
+}
+
+@keyframes shimmerSweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Shimmering gradient text for loading state */
+.shimmer-text {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    currentColor 50%,
+    rgba(255, 255, 255, 0.35) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmerSweep 1200ms linear infinite;
+}
+
+/* Pulsing opacity text (60% -> 100% -> 60%) for loading state */
+@keyframes pulseOpacity {
+  0% {
+    opacity: 0.38;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.38;
+  }
+}
+
+.pulse-text {
+  color: #000000;
+  animation: pulseOpacity 2000ms ease-in-out infinite;
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */

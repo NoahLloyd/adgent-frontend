@@ -1,63 +1,83 @@
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { useMemo } from "react";
+import { Textarea } from "./ui/textarea";
+
+export type StoryboardScene = {
+  scene_description: string;
+  voice_over_text: string;
+};
 
 interface StoryboardPanelProps {
-  prompt: string;
-  generatedText: string;
+  scenes: StoryboardScene[];
+  onScenesChange: (scenes: StoryboardScene[]) => void;
+  onGenerateScenes: () => void;
   model?: string;
-  onRegenerate: () => void;
+  assetsUploader?: React.ReactNode;
 }
 
 export const StoryboardPanel = ({
-  prompt,
-  generatedText,
+  scenes,
+  onScenesChange,
+  onGenerateScenes,
   model,
-  onRegenerate,
+  assetsUploader,
 }: StoryboardPanelProps) => {
-  const parsed = useMemo(() => {
-    try {
-      return JSON.parse(generatedText);
-    } catch {
-      return null;
-    }
-  }, [generatedText]);
+  const updateScene = (index: number, patch: Partial<StoryboardScene>) => {
+    const next = scenes.map((s, i) => (i === index ? { ...s, ...patch } : s));
+    onScenesChange(next);
+  };
 
   return (
-    <div className="w-full">
-      <Card className="border-border">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Storyboard</CardTitle>
-            <div className="flex items-center gap-2">
-              {model ? (
-                <span className="text-xs text-muted-foreground">
-                  Model: {model}
-                </span>
-              ) : null}
-              <Button variant="outline" size="sm" onClick={onRegenerate}>
-                Regenerate
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {parsed ? (
-            <pre className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md overflow-x-auto">
-              {JSON.stringify(parsed, null, 2)}
-            </pre>
-          ) : (
-            <pre className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md overflow-x-auto">
-              {generatedText}
-            </pre>
-          )}
-        </CardContent>
-      </Card>
-      <div className="mt-3">
-        <p className="text-xs text-muted-foreground">
-          Tip: Click Regenerate to load the exact prompt used, edit it, and
-          press Enter to refine the storyboard.
-        </p>
+    <div className="w-full space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">Storyboard</h3>
+        {model ? (
+          <span className="text-xs text-muted-foreground">Model: {model}</span>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {scenes.map((scene, index) => (
+          <Card key={index} className="border-border">
+            <CardHeader>
+              <CardTitle className="text-base">Scene {index + 1}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">
+                  Scene description
+                </label>
+                <Textarea
+                  value={scene.scene_description}
+                  onChange={(e) =>
+                    updateScene(index, { scene_description: e.target.value })
+                  }
+                  className="min-h-[88px]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">
+                  Voice-over
+                </label>
+                <Textarea
+                  value={scene.voice_over_text}
+                  onChange={(e) =>
+                    updateScene(index, { voice_over_text: e.target.value })
+                  }
+                  className="min-h-[72px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {assetsUploader}
+
+      <div className="flex items-center justify-center">
+        <Button size="lg" className="h-11 px-6" onClick={onGenerateScenes}>
+          Generate scenes
+        </Button>
       </div>
     </div>
   );

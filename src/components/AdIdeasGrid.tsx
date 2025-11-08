@@ -7,9 +7,13 @@ interface AdIdeasGridProps {
   onSelectIdea: (index: number) => void;
 }
 
-export const AdIdeasGrid = ({ ideas, selectedIndex, onSelectIdea }: AdIdeasGridProps) => {
+export const AdIdeasGrid = ({
+  ideas,
+  selectedIndex,
+  onSelectIdea,
+}: AdIdeasGridProps) => {
   return (
-    <div className="w-full max-w-5xl mx-auto py-8">
+    <div className="w-full max-w-5xl mx-auto pb-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {ideas.map((idea, index) => (
           <AdIdeaCard

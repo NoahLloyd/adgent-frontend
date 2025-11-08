@@ -3,7 +3,15 @@ import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ProcessingSteps } from "@/components/ProcessingSteps";
 import { AdIdeasGrid } from "@/components/AdIdeasGrid";
-import { StoryboardPanel } from "@/components/StoryboardPanel";
+import {
+  StoryboardPanel,
+  type StoryboardScene,
+} from "@/components/StoryboardPanel";
+import {
+  CharAssetsUploader,
+  type UploadedAsset,
+} from "@/components/CharAssetsUploader";
+import { ScenesGenerationPanel } from "@/components/ScenesGenerationPanel";
 import { SaveStatesMenu } from "@/components/SaveStatesMenu";
 import { toast } from "sonner";
 import { generateAdIdeas, extractUrl, generateStoryboard } from "@/utils/api";
@@ -13,7 +21,12 @@ import type { AppState } from "@/hooks/useSaveStates";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  typing?: boolean;
+  ephemeral?: boolean;
+  fade?: boolean;
 }
+
+const TYPING_MS_PER_CHAR = 18;
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,6 +45,13 @@ const Index = () => {
     generated_text: string;
     model?: string;
   } | null>(null);
+  const [storyboardScenes, setStoryboardScenes] = useState<
+    StoryboardScene[] | null
+  >(null);
+  const [lastStoryboardText, setLastStoryboardText] = useState<string>("");
+  const [charAssets, setCharAssets] = useState<UploadedAsset[]>([]);
+  const [isGeneratingScenes, setIsGeneratingScenes] = useState<boolean>(false);
+  const [generatedSceneUrls, setGeneratedSceneUrls] = useState<string[]>([]);
 
   const updateStepStatus = (
     stepId: string,
@@ -50,6 +70,7 @@ const Index = () => {
         setAdIdeas([]);
         setSelectedIdeaIndex(null);
         setStoryboardResult(null);
+        setStoryboardScenes(null);
 
         // Initialize storyboard steps
         const steps: ProcessingStep[] = [
@@ -64,10 +85,43 @@ const Index = () => {
         setProcessingSteps(steps);
         setIsProcessing(true);
 
-        setMessages((prev) => [...prev, { role: "user", content: message }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", content: message },
+          {
+            role: "assistant",
+            content: "Sure, I’ll generate a storyboard from that.",
+            typing: true,
+            ephemeral: true,
+          },
+        ]);
+        // Initialize storyboard steps (all pending – first pill appears after typing)
+        setProcessingSteps([
+          {
+            id: "prepare",
+            label: "Preparing storyboard prompt",
+            status: "pending",
+          },
+          { id: "generate", label: "Generating storyboard", status: "pending" },
+          { id: "finalize", label: "Finalizing", status: "pending" },
+        ]);
+        setIsProcessing(true);
+        // Wait for typing animation to finish before showing first pill
+        const storyboardPreface = "Sure, I’ll generate a storyboard from that.";
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            storyboardPreface.length * TYPING_MS_PER_CHAR + 120
+          )
+        );
+        // Now show first pill briefly, then proceed
+        updateStepStatus("prepare", "processing");
+        await new Promise((resolve) => setTimeout(resolve, 900));
         updateStepStatus("prepare", "complete");
         updateStepStatus("generate", "processing");
 
+        // Track exact user text for regenerate (no template)
+        setLastStoryboardText(message);
         const res = await generateStoryboard(message);
 
         updateStepStatus("generate", "complete");
@@ -78,14 +132,43 @@ const Index = () => {
           generated_text: res.generated_text,
           model: res.model,
         });
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content:
-              "Storyboard generated. Review it below or click Regenerate to refine.",
-          },
-        ]);
+        // Parse scenes from generated_text
+        try {
+          const parsed = JSON.parse(res.generated_text);
+          if (Array.isArray(parsed)) {
+            const normalized: StoryboardScene[] = parsed
+              .filter(
+                (s: any) =>
+                  s &&
+                  typeof s.scene_description === "string" &&
+                  typeof s.voice_over_text === "string"
+              )
+              .map((s: any) => ({
+                scene_description: s.scene_description,
+                voice_over_text: s.voice_over_text,
+              }));
+            setStoryboardScenes(normalized);
+          } else {
+            setStoryboardScenes(null);
+          }
+        } catch {
+          setStoryboardScenes(null);
+        }
+
+        // Fade out ephemeral preface + steps, then append final message
+        setMessages((prev) =>
+          prev.map((m) => (m.ephemeral ? { ...m, fade: true } : m))
+        );
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev.filter((m) => !m.ephemeral),
+            {
+              role: "assistant",
+              content:
+                "Storyboard generated. Review it below or click Regenerate to refine.",
+            },
+          ]);
+        }, 500);
         toast.success("Storyboard generated!");
         // Reset routing flag and prefill
         setRouteNextToStoryboard(false);
@@ -115,12 +198,28 @@ const Index = () => {
     setCompanyUrl(url);
 
     // Add user message
-    setMessages((prev) => [...prev, { role: "user", content: message }]);
+    const host = (() => {
+      try {
+        return new URL(url).host;
+      } catch {
+        return url.replace(/^https?:\/\//, "");
+      }
+    })();
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: message },
+      {
+        role: "assistant",
+        content: `Sure, I will generate ad concepts for ${host}`,
+        typing: true,
+        ephemeral: true,
+      },
+    ]);
 
     // Extract additional context (everything except the URL)
     const additionalContext = message.replace(url, "").trim();
 
-    // Initialize processing steps
+    // Initialize processing steps (all pending – first pill appears after typing)
     const steps: ProcessingStep[] = [
       { id: "scrape", label: "Scraping company website", status: "pending" },
       {
@@ -137,19 +236,25 @@ const Index = () => {
     setAdIdeas([]);
     setSelectedIdeaIndex(null);
     setStoryboardResult(null);
+    setStoryboardScenes(null);
 
     try {
-      // Simulate step-by-step processing
+      // Wait for the typing animation before showing first pill
+      const preface = `Sure, I will generate ad concepts for ${host}`;
+      await new Promise((resolve) =>
+        setTimeout(resolve, preface.length * TYPING_MS_PER_CHAR + 120)
+      );
+      // Simulate step-by-step processing (sequential, pills appear one-by-one)
       updateStepStatus("scrape", "processing");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       updateStepStatus("scrape", "complete");
 
       updateStepStatus("analyze", "processing");
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       updateStepStatus("analyze", "complete");
 
       updateStepStatus("generate", "processing");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       updateStepStatus("generate", "complete");
 
       updateStepStatus("images", "processing");
@@ -163,13 +268,19 @@ const Index = () => {
       updateStepStatus("images", "complete");
 
       setAdIdeas(ideas);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `I've generated 3 ad concepts for ${url}. Select one to continue.`,
-        },
-      ]);
+      // Fade out ephemeral preface + steps, then append final message
+      setMessages((prev) =>
+        prev.map((m) => (m.ephemeral ? { ...m, fade: true } : m))
+      );
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev.filter((m) => !m.ephemeral),
+          {
+            role: "assistant",
+            content: `I've generated 3 ad concepts for ${url}. Select one to continue.`,
+          },
+        ]);
+      }, 500);
 
       toast.success("Ad ideas generated successfully!");
     } catch (error) {
@@ -198,16 +309,42 @@ const Index = () => {
     setPrefillMessage(combined);
     setRouteNextToStoryboard(true);
     toast.success(`Selected: ${idea.title}`);
+    // Remove after 2 secs
+    setTimeout(() => {
+      toast.dismiss();
+    }, 2000);
   };
 
-  const handleRegenerateStoryboard = () => {
-    if (storyboardResult?.prompt) {
-      setPrefillMessage(storyboardResult.prompt);
-      setRouteNextToStoryboard(true);
-      toast.message(
-        "Loaded previous prompt. Edit and press Enter to regenerate."
-      );
-    }
+  const handleGenerateScenes = () => {
+    if (!storyboardScenes) return;
+    // For now, just call the backend with storyboard only (assets are stored server-side)
+    import("@/utils/api").then(({ generateScenes, API_BASE_URL }) => {
+      setIsGeneratingScenes(true);
+      setGeneratedSceneUrls([]);
+      generateScenes(storyboardScenes)
+        .then((res) => {
+          // Build default URLs by scene index
+          const count: number =
+            (res && (res.scenes_generated as number)) ||
+            storyboardScenes.length;
+          const urls = Array.from(
+            { length: count },
+            (_, i) => `${API_BASE_URL}/generated_scenes/scene${i + 1}.png`
+          );
+          setGeneratedSceneUrls(urls);
+          toast.success("Scenes generated");
+        })
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error(err);
+          toast.error(
+            err instanceof Error ? err.message : "Failed to generate scenes"
+          );
+        })
+        .finally(() => {
+          setIsGeneratingScenes(false);
+        });
+    });
   };
 
   return (
@@ -223,6 +360,8 @@ const Index = () => {
               selectedIdeaIndex,
               companyUrl,
               storyboardResult,
+              storyboardScenes,
+              lastStoryboardText,
             })}
             onLoadState={(state: AppState) => {
               setMessages(state.messages);
@@ -230,6 +369,8 @@ const Index = () => {
               setSelectedIdeaIndex(state.selectedIdeaIndex);
               setCompanyUrl(state.companyUrl);
               setStoryboardResult(state.storyboardResult);
+              setStoryboardScenes(state.storyboardScenes ?? null);
+              setLastStoryboardText(state.lastStoryboardText ?? "");
               setProcessingSteps([]);
               setIsProcessing(false);
               setPrefillMessage("");
@@ -243,7 +384,9 @@ const Index = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6">
-          {messages.length === 0 ? (
+          {isGeneratingScenes ? (
+            <ScenesGenerationPanel isGenerating={true} sceneUrls={[]} />
+          ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
               <h2 className="text-4xl font-semibold text-foreground">
                 Generate AI-powered ads
@@ -263,10 +406,17 @@ const Index = () => {
           ) : (
             <div className="py-8 space-y-6">
               {messages.map((msg, idx) => (
-                <ChatMessage key={idx} role={msg.role} content={msg.content} />
+                <ChatMessage
+                  key={idx}
+                  role={msg.role}
+                  content={msg.content}
+                  typing={msg.typing}
+                  fade={msg.fade}
+                  steps={msg.ephemeral ? processingSteps : undefined}
+                />
               ))}
 
-              {isProcessing && <ProcessingSteps steps={processingSteps} />}
+              {/* Inline steps are rendered inside the ephemeral assistant message */}
 
               {adIdeas.length > 0 && (
                 <AdIdeasGrid
@@ -276,12 +426,27 @@ const Index = () => {
                 />
               )}
 
-              {storyboardResult && (
+              {storyboardScenes && !isGeneratingScenes && (
                 <StoryboardPanel
-                  prompt={storyboardResult.prompt}
-                  generatedText={storyboardResult.generated_text}
-                  model={storyboardResult.model}
-                  onRegenerate={handleRegenerateStoryboard}
+                  scenes={storyboardScenes}
+                  onScenesChange={setStoryboardScenes}
+                  onGenerateScenes={handleGenerateScenes}
+                  model={storyboardResult?.model}
+                  assetsUploader={
+                    <div className="mt-2">
+                      <CharAssetsUploader
+                        assets={charAssets}
+                        onAssetsChange={setCharAssets}
+                      />
+                    </div>
+                  }
+                />
+              )}
+
+              {!isGeneratingScenes && generatedSceneUrls.length > 0 && (
+                <ScenesGenerationPanel
+                  isGenerating={false}
+                  sceneUrls={generatedSceneUrls}
                 />
               )}
             </div>
@@ -289,8 +454,8 @@ const Index = () => {
         </div>
       </main>
 
-      {/* Input Area */}
-      {messages.length > 0 && (
+      {/* Input Area - hidden when storyboard is present */}
+      {messages.length > 0 && !storyboardScenes && (
         <div className="border-t border-border bg-background">
           <div className="max-w-5xl mx-auto px-6 py-6">
             <ChatInput
