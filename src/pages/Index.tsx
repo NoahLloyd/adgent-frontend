@@ -352,7 +352,16 @@ const Index = () => {
       {/* Header */}
       <header className="border-b border-border">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-foreground">Adgent</h1>
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-md border border-border bg-background flex items-center justify-center overflow-hidden">
+              <img
+                src="/adgentlogo.png"
+                alt="Adgent logo"
+                className="h-6 w-6 object-cover"
+              />
+            </div>
+            <h1 className="text-xl font-semibold text-foreground">Adgent</h1>
+          </div>
           <SaveStatesMenu
             getCurrentState={() => ({
               messages,
