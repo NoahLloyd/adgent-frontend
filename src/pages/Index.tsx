@@ -12,6 +12,7 @@ import {
   type UploadedAsset,
 } from "@/components/CharAssetsUploader";
 import { ScenesGenerationPanel } from "@/components/ScenesGenerationPanel";
+import { ScenesGallery } from "@/components/ScenesGallery";
 import { SaveStatesMenu } from "@/components/SaveStatesMenu";
 import { toast } from "sonner";
 import { generateAdIdeas, extractUrl, generateStoryboard } from "@/utils/api";
@@ -52,6 +53,22 @@ const Index = () => {
   const [charAssets, setCharAssets] = useState<UploadedAsset[]>([]);
   const [isGeneratingScenes, setIsGeneratingScenes] = useState<boolean>(false);
   const [generatedSceneUrls, setGeneratedSceneUrls] = useState<string[]>([]);
+  const handleRegenerateImage = async (sceneIndex: number, prompt: string) => {
+    const { regenerateScene, API_BASE_URL } = await import("@/utils/api");
+    await regenerateScene(sceneIndex, prompt);
+    // Bust cache for updated image
+    setGeneratedSceneUrls((prev) =>
+      prev.map((u, idx) =>
+        idx + 1 === sceneIndex
+          ? `${API_BASE_URL}/generated_scenes/scene${sceneIndex}.png?t=${Date.now()}`
+          : u
+      )
+    );
+  };
+
+  const handleCreateVideo = () => {
+    toast.message("Create video is not implemented yet.");
+  };
 
   const updateStepStatus = (
     stepId: string,
@@ -395,6 +412,13 @@ const Index = () => {
         <div className="max-w-5xl mx-auto px-6">
           {isGeneratingScenes ? (
             <ScenesGenerationPanel isGenerating={true} sceneUrls={[]} />
+          ) : generatedSceneUrls.length > 0 ? (
+            <ScenesGallery
+              imageUrls={generatedSceneUrls}
+              scenes={storyboardScenes || []}
+              onRegenerate={handleRegenerateImage}
+              onCreateVideo={handleCreateVideo}
+            />
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
               <h2 className="text-4xl font-semibold text-foreground">
@@ -463,22 +487,25 @@ const Index = () => {
         </div>
       </main>
 
-      {/* Input Area - hidden when storyboard is present */}
-      {messages.length > 0 && !storyboardScenes && (
-        <div className="border-t border-border bg-background">
-          <div className="max-w-5xl mx-auto px-6 py-6">
-            <ChatInput
-              onSend={handleSendMessage}
-              disabled={isProcessing}
-              placeholder="Paste your company website URL and any additional context..."
-              prefill={prefillMessage}
-              onVoiceClick={() =>
-                toast.message("Voice input not implemented yet")
-              }
-            />
+      {/* Input Area - hidden when storyboard is present or scenes view is active */}
+      {messages.length > 0 &&
+        !storyboardScenes &&
+        generatedSceneUrls.length === 0 &&
+        !isGeneratingScenes && (
+          <div className="border-t border-border bg-background">
+            <div className="max-w-5xl mx-auto px-6 py-6">
+              <ChatInput
+                onSend={handleSendMessage}
+                disabled={isProcessing}
+                placeholder="Paste your company website URL and any additional context..."
+                prefill={prefillMessage}
+                onVoiceClick={() =>
+                  toast.message("Voice input not implemented yet")
+                }
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };

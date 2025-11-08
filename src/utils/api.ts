@@ -78,3 +78,21 @@ export async function generateScenes(
   }
   return await response.json();
 }
+
+export async function regenerateScene(
+  sceneIndex: number,
+  prompt: string
+): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/regenerate-scene`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ scene_index: sceneIndex, prompt }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+  return await response.json();
+}
