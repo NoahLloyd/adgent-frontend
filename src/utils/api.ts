@@ -96,3 +96,49 @@ export async function regenerateScene(
   }
   return await response.json();
 }
+
+export async function generateVoiceovers(voiceId?: string): Promise<any> {
+  const url = new URL(`${API_BASE_URL}/generate-voiceovers`);
+  if (voiceId) {
+    url.searchParams.set("voice_id", voiceId);
+  }
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+  return await response.json();
+}
+
+export async function generateVideos(): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/generate-videos`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+  return await response.json();
+}
+
+export async function generateFinalVideo(): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/generate_final_video`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+  return await response.json().catch(() => ({}));
+}

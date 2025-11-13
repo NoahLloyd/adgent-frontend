@@ -14,9 +14,13 @@ interface ScenesGalleryProps {
   scenes: Scene[];
   onRegenerate: (sceneIndex: number, prompt: string) => Promise<void>;
   onCreateVideo: () => void;
+  onGenerateVoiceovers: () => void;
+  isGeneratingVoiceovers: boolean;
+  isVoiceoversReady: boolean;
+  isGeneratingVideo: boolean;
 }
 
-export const ScenesGallery = ({ imageUrls, scenes, onRegenerate, onCreateVideo }: ScenesGalleryProps) => {
+export const ScenesGallery = ({ imageUrls, scenes, onRegenerate, onCreateVideo, onGenerateVoiceovers, isGeneratingVoiceovers, isVoiceoversReady, isGeneratingVideo }: ScenesGalleryProps) => {
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [prompts, setPrompts] = useState<Record<number, string>>({});
   const [isRegen, setIsRegen] = useState<Record<number, boolean>>({});
@@ -92,9 +96,24 @@ export const ScenesGallery = ({ imageUrls, scenes, onRegenerate, onCreateVideo }
         })}
       </div>
 
-      <div className="flex items-center justify-center pt-4">
-        <Button size="lg" className="h-11 px-6" onClick={onCreateVideo}>
-          Create video
+      <div className="flex items-center justify-center gap-3 pt-4">
+        <Button
+          size="lg"
+          className="h-11 px-6"
+          onClick={onGenerateVoiceovers}
+          disabled={isGeneratingVoiceovers || isVoiceoversReady}
+          variant={isVoiceoversReady ? "secondary" : "default"}
+        >
+          {isVoiceoversReady ? "Voiceovers ready" : isGeneratingVoiceovers ? "Generating voiceovers…" : "Generate voiceovers"}
+        </Button>
+        <Button
+          size="lg"
+          className="h-11 px-6"
+          onClick={onCreateVideo}
+          disabled={!isVoiceoversReady || isGeneratingVideo}
+          variant={!isVoiceoversReady ? "secondary" : "default"}
+        >
+          {isGeneratingVideo ? "Creating video…" : "Create video"}
         </Button>
       </div>
     </div>

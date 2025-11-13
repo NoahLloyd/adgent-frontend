@@ -61,6 +61,12 @@ const Index = () => {
   const [showSources, setShowSources] = useState<boolean>(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState<boolean>(false);
   const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
+  const [isGeneratingVoiceovers, setIsGeneratingVoiceovers] =
+    useState<boolean>(false);
+  const [isVoiceoversReady, setIsVoiceoversReady] = useState<boolean>(false);
+  const [isGeneratingFinal, setIsGeneratingFinal] = useState<boolean>(false);
+  const [isFinalReady, setIsFinalReady] = useState<boolean>(false);
+  const [finalVideoUrl, setFinalVideoUrl] = useState<string>("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const navigate = useNavigate();
   const handleRegenerateImage = async (sceneIndex: number, prompt: string) => {
@@ -76,15 +82,66 @@ const Index = () => {
     );
   };
 
-  const handleCreateVideo = () => {
+  const handleGenerateVoiceovers = async () => {
+    try {
+      setIsGeneratingVoiceovers(true);
+      const { generateVoiceovers } = await import("@/utils/api");
+      const res = await generateVoiceovers();
+      setIsVoiceoversReady(true);
+      toast.success(
+        res && typeof res.successful === "number"
+          ? `Voiceovers generated for ${res.successful}/${res.total_scenes} scenes`
+          : "Voiceovers generated"
+      );
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to generate voiceovers"
+      );
+    } finally {
+      setIsGeneratingVoiceovers(false);
+    }
+  };
+
+  const handleCreateVideo = async () => {
     setIsVideoReady(false);
+    setIsFinalReady(false);
     setIsGeneratingVideo(true);
-    // Simulate 10s generation
-    setTimeout(() => {
-      setIsGeneratingVideo(false);
+    try {
+      const { generateVideos } = await import("@/utils/api");
+      await generateVideos();
       setIsVideoReady(true);
-      toast.success("Video generated");
-    }, 10000);
+      toast.success("Scene videos generated");
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to generate videos"
+      );
+    } finally {
+      setIsGeneratingVideo(false);
+    }
+  };
+
+  const handleGenerateFinalAd = async () => {
+    try {
+      setIsGeneratingFinal(true);
+      const { generateFinalVideo, API_BASE_URL } = await import("@/utils/api");
+      await generateFinalVideo();
+      const url = `${API_BASE_URL}/final_video.mp4?t=${Date.now()}`;
+      setFinalVideoUrl(url);
+      setIsFinalReady(true);
+      toast.success("Final ad video ready");
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to generate final ad"
+      );
+    } finally {
+      setIsGeneratingFinal(false);
+    }
   };
 
   const handleEnterFullscreen = () => {
@@ -433,13 +490,13 @@ const Index = () => {
                 </div>
               </div>
             </div>
-          ) : isVideoReady ? (
+          ) : isFinalReady ? (
             <div className="w-full">
               <div className="w-full">
                 <div className="w-full">
                   <video
                     ref={videoRef}
-                    src="/demo.mp4"
+                    src={finalVideoUrl}
                     controls
                     className="w-full h-[calc(100vh-110px)] object-contain bg-black"
                   />
@@ -461,6 +518,24 @@ const Index = () => {
                 </Button>
               </div>
             </div>
+          ) : isVideoReady ? (
+            <div className="w-full h-full min-h-[60vh] flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-base">
+                  Scene videos generated. Create your final ad when ready.
+                </div>
+                <Button
+                  size="lg"
+                  className="h-11 px-6"
+                  onClick={handleGenerateFinalAd}
+                  disabled={isGeneratingFinal}
+                >
+                  {isGeneratingFinal
+                    ? "Generating final ad…"
+                    : "Generate final ad"}
+                </Button>
+              </div>
+            </div>
           ) : (
             <div className="max-w-5xl mx-auto px-6">
               {isGeneratingScenes ? (
@@ -471,6 +546,10 @@ const Index = () => {
                   scenes={storyboardScenes || []}
                   onRegenerate={handleRegenerateImage}
                   onCreateVideo={handleCreateVideo}
+                  onGenerateVoiceovers={handleGenerateVoiceovers}
+                  isGeneratingVoiceovers={isGeneratingVoiceovers}
+                  isVoiceoversReady={isVoiceoversReady}
+                  isGeneratingVideo={isGeneratingVideo}
                 />
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
